@@ -2,26 +2,31 @@
 pragma solidity 0.8.15;
 
 import "forge-std/Test.sol";
+import "forge-std/console2.sol";
 
 contract YulDeployer is Test {
+
+    string uri = "dimitarrdimitarrdimitarrdimitarrdimitarrdimitarrdimitarrdimitarrr";
+
     ///@notice Compiles a Yul contract and returns the address that the contract was deployed to
     ///@notice If deployment fails, an error will be thrown
     ///@param fileName - The file name of the Yul contract. For example, the file name for "Example.yul" is "Example"
     ///@return deployedAddress - The address that the contract was deployed to
     function deployContract(string memory fileName) public returns (address) {
-        string memory bashCommand = string.concat('cast abi-encode "f(bytes)" $(solc --yul yul/', string.concat(fileName, ".yul --bin | tail -1)"));
-
+        string memory bashCommand = string.concat('cast abi-encode "f(bytes)" $(solc --strict-assembly yul/', string.concat(fileName, ".yul --bin | tail -1)"));
         string[] memory inputs = new string[](3);
         inputs[0] = "bash";
         inputs[1] = "-c";
         inputs[2] = bashCommand;
 
         bytes memory bytecode = abi.decode(vm.ffi(inputs), (bytes));
-
+        // console.logBytes(bytecode);
+        bytes memory codeERC1155 = abi.encodePacked(bytecode, abi.encode(uri));
+        // console.logBytes(codeERC1155);
         ///@notice deploy the bytecode with the create instruction
         address deployedAddress;
         assembly {
-            deployedAddress := create(0, add(bytecode, 0x20), mload(bytecode))
+            deployedAddress := create(0, add(codeERC1155, 0x20), mload(codeERC1155))
         }
 
         ///@notice check that the deployment was successful
