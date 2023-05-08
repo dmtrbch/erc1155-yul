@@ -11,15 +11,39 @@ import {ERC1155TokenReceiver} from "../lib/solmate/src/tokens/ERC1155.sol";
 
 interface ERC1155 {
     function uri(uint256 id) external view returns (string memory);
-    function mint(address to, uint256 id, uint256 amount, bytes memory data) external;
-    function balanceOf(address account, uint256 id) external view returns (uint256);
+
+    function mint(
+        address to,
+        uint256 id,
+        uint256 amount,
+        bytes memory data
+    ) external;
+
+    function balanceOf(
+        address account,
+        uint256 id
+    ) external view returns (uint256);
+
     function balanceOfBatch(
         address[] calldata accounts,
         uint256[] calldata ids
     ) external view returns (uint256[] memory);
+
     function setApprovalForAll(address operator, bool approved) external;
-    function isApprovedForAll(address account, address operator) external view returns (bool);
-    function safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes calldata data) external;
+
+    function isApprovedForAll(
+        address account,
+        address operator
+    ) external view returns (bool);
+
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 id,
+        uint256 amount,
+        bytes calldata data
+    ) external;
+
     function safeBatchTransferFrom(
         address from,
         address to,
@@ -28,7 +52,6 @@ interface ERC1155 {
         bytes calldata data
     ) external;
 }
-
 
 contract ERC1155Recipient is ERC1155TokenReceiver {
     address public operator;
@@ -88,8 +111,9 @@ contract ERC1155Test is DSTestPlus, ERC1155TokenReceiver {
     YulDeployer yulDeployer = new YulDeployer();
 
     ERC1155 erc1155Contract;
-    
-    string uri = "dimitarrdimitarrdimitarrdimitarrdimitarrdimitarrdimitarrdimitarrr";
+
+    string uri =
+        "dimitarrdimitarrdimitarrdimitarrdimitarrdimitarrdimitarrdimitarrr";
 
     function setUp() public {
         erc1155Contract = ERC1155(yulDeployer.deployContract("ERC1155"));
@@ -98,7 +122,7 @@ contract ERC1155Test is DSTestPlus, ERC1155TokenReceiver {
     function testUri() public {
         uint256 id = 0;
         string memory _test = uri;
-        console2.logString(_test);
+        //console2.logString(_test);
         assertEq(erc1155Contract.uri(id), _test);
     }
 
@@ -112,11 +136,8 @@ contract ERC1155Test is DSTestPlus, ERC1155TokenReceiver {
         ERC1155Recipient to = new ERC1155Recipient();
 
         erc1155Contract.mint(address(to), 1337, 1, "");
-        //console2.logUint(erc1155Contract.balanceOf(address(to), 1337));
-        assertEq(erc1155Contract.balanceOf(address(to), 1337), 1);
-        console.logAddress(to.from());
-        //assertEq(to.operator(), address(this));
-        //assertEq(to.from(), address(0));
+        assertEq(to.operator(), address(erc1155Contract));
+        assertEq(to.from(), address(0));
         assertEq(to.id(), 1337);
         assertBytesEq(to.mintData(), "");
     }

@@ -9,7 +9,7 @@ object "ERC1155" {
     // Store the creator in slot zero.
     sstore(0, caller())
 
-		let offset := add(0x4bb, 0x20) // first parameter is length of bytecode, this is hardcoded
+		let offset := add(0x4c9, 0x20) // first parameter is length of bytecode, this is hardcoded
 		let uriDataLength := sub(codesize(), offset) // codesize - offset (maybe we need safeSub here)
    
 		codecopy(0, offset, uriDataLength)  // right offset hardcoded
@@ -125,13 +125,14 @@ object "ERC1155" {
         mstore(0, 0)
 
         mstore(getMemPtr(), fnSelector)
-        mstore(add(getMemPtr(), 0x04), 0x0000000000000000000000000000000000000000000000000000000000000000)
-        mstore(add(getMemPtr(), 0x24), address())
+        mstore(add(getMemPtr(), 0x04), address())
+        mstore(add(getMemPtr(), 0x24), 0x0000000000000000000000000000000000000000000000000000000000000000)
         mstore(add(getMemPtr(), 0x44), id)
         mstore(add(getMemPtr(), 0x64), amount)
-        mstore(add(getMemPtr(), 0x84), 0x0000000000000000000000000000000000000000000000000000000000000000)
+        mstore(add(getMemPtr(), 0x84), 0x00000000000000000000000000000000000000000000000000000000000000a0)
+        mstore(add(getMemPtr(), 0xa4), 0x0000000000000000000000000000000000000000000000000000000000000000)
 
-        let success := call(gas(), account, 0, getMemPtr(), 0xa4, 0x00, 0x04)
+        let success := call(gas(), account, 0, getMemPtr(), 0xc4, 0x00, 0x04)
         require(success)
 
         let response := mload(0)
