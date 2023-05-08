@@ -136,6 +136,9 @@ contract ERC1155Test is DSTestPlus, ERC1155TokenReceiver {
         ERC1155Recipient to = new ERC1155Recipient();
 
         erc1155Contract.mint(address(to), 1337, 1, "");
+
+        assertEq(erc1155Contract.balanceOf(address(to), 1337), 1);
+
         assertEq(to.operator(), address(erc1155Contract));
         assertEq(to.from(), address(0));
         assertEq(to.id(), 1337);
