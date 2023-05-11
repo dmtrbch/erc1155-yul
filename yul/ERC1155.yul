@@ -9,7 +9,7 @@ object "ERC1155" {
     // Store the creator in slot zero.
     sstore(0, caller())
 
-		let offset := add(0x7d4, 0x20) // first parameter is length of bytecode, this is hardcoded
+		let offset := add(0xa50, 0x20) // first parameter is length of bytecode, this is hardcoded
 		let uriDataLength := sub(codesize(), offset) // codesize - offset (maybe we need safeSub here)
    
 		codecopy(0, offset, uriDataLength)  // right offset hardcoded
@@ -106,6 +106,20 @@ object "ERC1155" {
         // check that the receiving address can receive erc1155 tokens
         _doSafeTransferAcceptanceCheck(from, to, id, amount)
       }
+      case 0x2eb2c2d6 /* "safeBatchTransferFrom(address from, address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data)" */ {
+        let from := decodeAsAddress(0)
+        let to := decodeAsAddress(1)
+        let idsOffset := decodeAsUint(2)
+        let amountsOffset := decodeAsUint(3)
+        let dataOffset := decodeAsUint(4)
+
+        safeBatchTransferFrom(from, to, idsOffset, amountsOffset)
+      
+        //emitTransferBatch(caller(), address0(), to, idsOffset, amountsOffset)
+
+        // check that the receiving address can receive erc1155 tokens
+        _doSafeBatchTransferAcceptanceCheck(from, to, idsOffset, amountsOffset, dataOffset)
+      }
       case 0x731133e9 /* mint(address to, uint256 id, uint256 amount, bytes memory data) */{
         let to := decodeAsAddress(0)
         let id := decodeAsUint(1)
@@ -128,7 +142,7 @@ object "ERC1155" {
       
         //emitTransferBatch(caller(), address0(), to, idsOffset, amountsOffset)
 
-        _doSafeBatchTransferAcceptanceCheck(to, idsOffset, amountsOffset, dataOffset)
+        _doSafeBatchTransferAcceptanceCheck(address0(), to, idsOffset, amountsOffset, dataOffset)
       }
 /*=======================================================*/
       //burn
@@ -212,12 +226,13 @@ object "ERC1155" {
         // emitApprovalForAll(_owner, operator, approved)
       }
 
-      funciton isApprovedForAll(account, operator) -> v {
+      function isApprovedForAll(account, operator) -> v {
         let offset := operatorApprovals(account, operator)
         v := sload(offset)
       }
 
       function safeTransferFrom(_from, _to, _id, _amount) {
+        // ERC1155: caller is not token owner or approved
         require(or(eq(_from, caller()), isApprovedForAll(_from, caller())))
 
         let fromBalance := balanceOf(_from, _id)
@@ -230,6 +245,39 @@ object "ERC1155" {
         let toOffset := balances(_to, _id)
         let toBalance := balanceOf(_to, _id)
         sstore(toOffset, safeAdd(toBalance, _amount))
+      }
+
+      function safeBatchTransferFrom(_from, _to, _idsOffset, _amountsOffset) {
+        // ERC1155: caller is not token owner or approved
+        require(or(eq(_from, caller()), isApprovedForAll(_from, caller())))
+
+        let idsLength := decodeAsArrayLength(_idsOffset)
+        let amountsLength := decodeAsArrayLength(_amountsOffset)
+
+        require(eq(idsLength, amountsLength))
+
+        let idsPtr := add(_idsOffset, 0x24)
+        let amountsPtr := add(_amountsOffset, 0x24)
+
+        for
+          { let i := 0 }
+          lt(i, idsLength)
+          { i := add(i, 1) }
+        {
+          let _id := calldataload(add(idsPtr, mul(0x20, i)))
+          let _amount := calldataload(add(amountsPtr, mul(0x20, i)))
+
+          let fromBalance := balanceOf(_from, _id)
+
+          require(lte(_amount, fromBalance))
+
+          let fromOffset := balances(_from, _id)
+          sstore(fromOffset, sub(fromBalance, _amount))
+
+          let toOffset := balances(_to, _id)
+          let toBalance := balanceOf(_to, _id)
+          sstore(toOffset, safeAdd(toBalance, _amount))
+        }
       }
 
       function mint(to, id, amount) {
@@ -283,7 +331,7 @@ object "ERC1155" {
         require(eq(response, fnSelector))
       }
 
-      function _doSafeBatchTransferAcceptanceCheck(account, _idsOffset, _amountsOffset, _dataOffset) {
+      function _doSafeBatchTransferAcceptanceCheck(_from, account, _idsOffset, _amountsOffset, _dataOffset) {
         // 0xbc197c81 = onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)
         let fnSelector := 0xbc197c8100000000000000000000000000000000000000000000000000000000
 
@@ -295,7 +343,7 @@ object "ERC1155" {
 
         mstore(getMemPtr(), fnSelector)
         mstore(add(getMemPtr(), 0x04), caller())
-        mstore(add(getMemPtr(), 0x24), 0x0000000000000000000000000000000000000000000000000000000000000000)
+        mstore(add(getMemPtr(), 0x24), _from)
         mstore(add(getMemPtr(), 0x44), add(_idsOffset, 0x20)) // ids offset
         mstore(add(getMemPtr(), 0x64), add(_amountsOffset, 0x20)) // amounts offset
         mstore(add(getMemPtr(), 0x84), add(_dataOffset, 0x20)) // data offset
