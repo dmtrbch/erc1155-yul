@@ -59,7 +59,7 @@ object "ERC1155" {
         returnUint(or(eq(interfaceId, IERC1155InterfaceId), or(eq(interfaceId, IERC1155MetdataURIInterfaceId), eq(interfaceId, IERC165InterfaceId))))
       }
       case 0x0e89341c /* uri(uint256 id) */ {
-        // note: the id is not used here, see this function's docstring
+        // note: the id is not used here
         let from, to := uri()
 
         returnMemoryData(from, to)
@@ -137,6 +137,7 @@ object "ERC1155" {
       
         emitTransferBatch(caller(), address0(), to, idsOffset, amountsOffset)
 
+        // check that the receiving address can receive erc1155 tokens
         _doSafeBatchTransferAcceptanceCheck(address0(), to, idsOffset, amountsOffset, dataOffset)
       }
       case 0xf5298aca /* burn(address from, uint256 id, uint256 amount) */ {
@@ -161,7 +162,7 @@ object "ERC1155" {
         revert(0, 0)
       }
 
-/*================================================*/
+      /* ---------- implementation functions ---------- */
       function uri() -> startsAt, endsAt {
         startsAt := getMemPtr()
         let uriLength := sload(uriLengthPos())
@@ -184,8 +185,8 @@ object "ERC1155" {
             lt(i, wordCount)
             { i:= add(i, 1) }
           {
-            let chunk_i := sload(add(3, i))
-            mstore(getMemPtr(), chunk_i) // let's put it into memory
+            let chunk := sload(add(3, i))
+            mstore(getMemPtr(), chunk) // let's put it into memory
             incrPtr() // ptr++
           }
         }
