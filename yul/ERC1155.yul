@@ -6,7 +6,7 @@ object "ERC1155" {
       r := iszero(gt(a, b))
     }
 
-		let offset := add(0xc41, 0x20) // first parameter is length of bytecode, this is hardcoded
+		let offset := add(0xd59, 0x20) // first parameter is length of bytecode, this is hardcoded
 		let uriDataLength := sub(codesize(), offset) // codesize - offset (maybe we need safeSub here)
    
 		codecopy(0, offset, uriDataLength)  // right offset hardcoded
@@ -107,7 +107,7 @@ object "ERC1155" {
 
         safeBatchTransferFrom(from, to, idsOffset, amountsOffset)
       
-        //emitTransferBatch(caller(), address0(), to, idsOffset, amountsOffset)
+        emitTransferBatch(caller(), from, to, idsOffset, amountsOffset)
 
         // check that the receiving address can receive erc1155 tokens
         _doSafeBatchTransferAcceptanceCheck(from, to, idsOffset, amountsOffset, dataOffset)
@@ -135,7 +135,7 @@ object "ERC1155" {
         
         mintBatch(to, idsOffset, amountsOffset)
       
-        //emitTransferBatch(caller(), address0(), to, idsOffset, amountsOffset)
+        emitTransferBatch(caller(), address0(), to, idsOffset, amountsOffset)
 
         _doSafeBatchTransferAcceptanceCheck(address0(), to, idsOffset, amountsOffset, dataOffset)
       }
@@ -155,7 +155,7 @@ object "ERC1155" {
 
         burnBatch(from, idsOffset, amountsOffset)
 
-        //emitTransferBatch(caller(), address0(), to, idsOffset, amountsOffset)
+        emitTransferBatch(caller(), from, address0(), idsOffset, amountsOffset)
       }
       default {
         revert(0, 0)
@@ -233,7 +233,8 @@ object "ERC1155" {
 
         let offset := operatorApprovals(_owner, operator)
         sstore(offset, approved)
-        // emitApprovalForAll(_owner, operator, approved)
+
+        emitApprovalForAll(_owner, operator, approved)
       }
 
       function isApprovedForAll(account, operator) -> v {
@@ -488,44 +489,45 @@ object "ERC1155" {
         log4(0x00, 0x40, signatureHash, operator, from, to)
       }
 
-      /* function emitTransferBatch(operator, from, to, posIds, posAmounts) {
+      function emitTransferBatch(operator, from, to, idsOffset, amountsOffset) {
         let signatureHash := 0x4a39dc06d4c0dbc64b70af90fd698a233a518aa5d07e595d983b8c0526c8f7fb
                 
-        let lenIds := decodeAsUint(div(posIds, 0x20))
-        let lenAmounts := decodeAsUint(div(posAmounts, 0x20))
+        let idsLength := decodeAsArrayLength(idsOffset)
+        let amountsLength := decodeAsArrayLength(amountsOffset)
 
-        let idsStart := 0x40
-        let amountsStart := add(mul(0x20, lenIds), 0x60)
+        let idsPtr := add(idsOffset, 0x24)
+        let amountsPtr := add(amountsOffset, 0x24)
 
-        // now start the amounts array, start with the length
-        let totalSize := add(0x80, mul(mul(lenIds, 2), 0x20))
+        let argsDataLength := add(0x80, mul(mul(idsLength, 2), 0x20))
 
-        // two dynamic arrays, store their starts in the first 2 slots
-        mstore(0x00, idsStart) // ids start at 0x40
-        mstore(0x20, amountsStart) // amounts start here; (len) * 0x20 + 0x60 = 3 * 0x20 + 0x60 = 0x120
-        // now store the ids array, start with the length
-        mstore(idsStart, lenIds)
-        mstore(amountsStart, lenAmounts)
+        mstore(0x00, idsPtr)
+        mstore(0x20, amountsPtr)
 
-        // fill in the id values
-        for { let i := 0 } lt(i, lenIds) { i:= add(i, 1) }
+        mstore(idsPtr, idsLength)
+        mstore(amountsPtr, amountsLength)
+
+        for
+          { let i := 0 }
+          lt(i, idsLength)
+          { i:= add(i, 1) }
         {
-          let ithId := decodeAsUint(_getArrayElementSlot(posIds, i))
-          let ithAmount := decodeAsUint(_getArrayElementSlot(posAmounts, i))
+          let id := calldataload(add(idsPtr, mul(0x20, i)))
+          let amount := calldataload(add(amountsPtr, mul(0x20, i)))
 
-          mstore(add(add(idsStart, 0x20), mul(i, 0x20)), ithId)
-          mstore(add(add(amountsStart, 0x20), mul(i, 0x20)), ithAmount)
+          mstore(add(add(idsPtr, 0x20), mul(i, 0x20)), id)
+          mstore(add(add(amountsPtr, 0x20), mul(i, 0x20)), amount)
         }
                 
-        log4(0x00, totalSize, signatureHash, operator, from, to)
-      } */
+        log4(0x00, argsDataLength, signatureHash, operator, from, to)
+      }
 
-      //function emitApprovalForAll(owner, operator, approved) {
-        /* ApprovalForAll(adderss,address,bool) */
-      //  let signatureHash := 0x17307eab39ab6107e8899845ad3d59bd9653f200f220920489ca2b5937696c31
-      //  mstore(0x00, approved)
-      //  log3(0x00, 0x20, signatureHash, owner, operator)
-      //}
+      function emitApprovalForAll(owner, operator, approved) {
+        let signatureHash := 0x17307eab39ab6107e8899845ad3d59bd9653f200f220920489ca2b5937696c31
+
+        mstore(0x00, approved)
+
+        log3(0x00, 0x20, signatureHash, owner, operator)
+      }
 
       /* -------- storage layout ---------- */
       function balancesPos() -> p { p := 0 }

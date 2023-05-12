@@ -169,7 +169,7 @@ contract ERC1155Test is DSTestPlus, ERC1155TokenReceiver {
         assertBytesEq(to.mintData(), "");
     }
 
-    function testmintBatchToEOA() public {
+    function testMintBatchToEOA() public {
         uint256[] memory ids = new uint256[](5);
         ids[0] = 1337;
         ids[1] = 1338;
@@ -464,7 +464,7 @@ contract ERC1155Test is DSTestPlus, ERC1155TokenReceiver {
         assertEq(erc1155Contract.balanceOf(address(0xBEEF), 1337), 50);
         assertEq(erc1155Contract.balanceOf(address(0xBEEF), 1338), 100);
         assertEq(erc1155Contract.balanceOf(address(0xBEEF), 1339), 150);
-        assertEq(erc1155Contract.balaburnbatnceOf(address(0xBEEF), 1340), 200);
+        assertEq(erc1155Contract.balanceOf(address(0xBEEF), 1340), 200);
         assertEq(erc1155Contract.balanceOf(address(0xBEEF), 1341), 250);
     }
 }
