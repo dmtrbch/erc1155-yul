@@ -6,21 +6,18 @@ object "ERC1155" {
       r := iszero(gt(a, b))
     }
 
-    // Store the creator in slot zero.
-    sstore(0, caller())
-
-		let offset := add(0xa50, 0x20) // first parameter is length of bytecode, this is hardcoded
+		let offset := add(0xc41, 0x20) // first parameter is length of bytecode, this is hardcoded
 		let uriDataLength := sub(codesize(), offset) // codesize - offset (maybe we need safeSub here)
    
 		codecopy(0, offset, uriDataLength)  // right offset hardcoded
 
 		let uriLength := mload(0)
 
-		sstore(3, uriLength)
+		sstore(2, uriLength)
 
 		if lte(uriLength, 0x20) {
       let uri := mload(0x20)
-      sstore(4, uri)
+      sstore(3, uri)
     }
 
     if gt(uriLength, 0x20) {
@@ -32,7 +29,7 @@ object "ERC1155" {
         { i:= add(i, 1) }
       {
         sstore(
-          add(4, i),
+          add(3, i),
           mload(mul(0x20, add(i, 1)))
         )
       }
@@ -88,11 +85,6 @@ object "ERC1155" {
         let approved := isApprovedForAll(decodeAsAddress(0), decodeAsAddress(1))
         returnUint(approved)
       }
-/*=======================================================*/
-      //safeTransferFrom
-      //safeBatchTransferFrom
-      //setUri
-/*=======================================================*/
       case 0xf242432a /* "safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes memory data)" */ {
         let from := decodeAsAddress(0)
         let to := decodeAsAddress(1)
@@ -120,6 +112,9 @@ object "ERC1155" {
         // check that the receiving address can receive erc1155 tokens
         _doSafeBatchTransferAcceptanceCheck(from, to, idsOffset, amountsOffset, dataOffset)
       }
+      case 0x02fe5305 /* setURI(string memory newuri) */ {
+        setURI(decodeAsUint(0))
+      }
       case 0x731133e9 /* mint(address to, uint256 id, uint256 amount, bytes memory data) */{
         let to := decodeAsAddress(0)
         let id := decodeAsUint(1)
@@ -144,13 +139,28 @@ object "ERC1155" {
 
         _doSafeBatchTransferAcceptanceCheck(address0(), to, idsOffset, amountsOffset, dataOffset)
       }
-/*=======================================================*/
-      //burn
-      //burnBatch
-/*=======================================================*/
+      case 0xf5298aca /* burn(address from, uint256 id, uint256 amount) */ {
+        let from := decodeAsAddress(0)
+        let id := decodeAsUint(1)
+        let amount := decodeAsUint(2)
+
+        burn(from, id, amount)
+
+        emitTransferSingle(caller(), from, address0(), id, amount)
+      }
+      case 0x6b20c454 /* burnBatch(address from, uint256[] memory ids, uint256[] memory amounts) */ {
+        let from := decodeAsAddress(0)
+        let idsOffset := decodeAsUint(1)
+        let amountsOffset := decodeAsUint(2)
+
+        burnBatch(from, idsOffset, amountsOffset)
+
+        //emitTransferBatch(caller(), address0(), to, idsOffset, amountsOffset)
+      }
       default {
         revert(0, 0)
       }
+
 /*================================================*/
       function uri() -> startsAt, endsAt {
         startsAt := getMemPtr()
@@ -174,7 +184,7 @@ object "ERC1155" {
             lt(i, wordCount)
             { i:= add(i, 1) }
           {
-            let chunk_i := sload(add(4, i))
+            let chunk_i := sload(add(3, i))
             mstore(getMemPtr(), chunk_i) // let's put it into memory
             incrPtr() // ptr++
           }
@@ -280,6 +290,53 @@ object "ERC1155" {
         }
       }
 
+      function setURI(uriOffset) {
+        // reset old uri data
+        let oldUriLength := sload(uriLengthPos())
+
+        if lte(oldUriLength, 0x20) {
+          sstore(3, 0) //string position starts in slot 3
+        }
+
+        if gt(oldUriLength, 0x20) {
+          let wordCount := add(div(sub(oldUriLength, 1), 0x20), 1)
+
+          for
+            { let i := 0 }
+            lt(i, wordCount)
+            { i:= add(i, 1) }
+          {
+            sstore(add(3, i), 0)
+          }
+		    }
+
+        // new uri data
+        let uriLength := decodeAsArrayLength(uriOffset)
+        let uriPtr := add(uriOffset, 0x24)
+
+		    sstore(2, uriLength)
+
+		    if lte(uriLength, 0x20) {
+          let _uri := calldataload(uriPtr)
+          sstore(3, _uri)
+        }
+
+        if gt(uriLength, 0x20) {
+          let wordCount := add(div(sub(uriLength, 1), 0x20), 1)
+
+          for
+            { let i := 0 }
+            lt(i, wordCount)
+            { i:= add(i, 1) }
+          {
+            sstore(
+              add(3, i),
+              calldataload(add(uriPtr, mul(0x20, i)))
+            )
+          }
+		    }
+      }
+
       function mint(to, id, amount) {
         let toBalanceSlot := balances(to, id)
         let toBalance := sload(toBalanceSlot)
@@ -305,6 +362,35 @@ object "ERC1155" {
           let _id := calldataload(add(idsPtr, mul(0x20, i)))
           let _amount := calldataload(add(amountsPtr, mul(0x20, i)))
           mint(_to, _id, _amount)
+        }
+      }
+
+      function burn(_from, _id, _amount) {
+        let fromBalance := balanceOf(_from, _id)
+
+        require(lte(_amount, fromBalance))
+
+        let fromOffset := balances(_from, _id)
+        sstore(fromOffset, sub(fromBalance, _amount))
+      }
+
+      function burnBatch(_from, _idsOffset, _amountsOffset) {
+        let idsLength := decodeAsArrayLength(_idsOffset)
+        let amountsLength := decodeAsArrayLength(_amountsOffset)
+
+        require(eq(idsLength, amountsLength))
+
+        let idsPtr := add(_idsOffset, 0x24)
+        let amountsPtr := add(_amountsOffset, 0x24)
+
+        for
+          { let i := 0 }
+          lt(i, idsLength)
+          { i := add(i, 1) }
+        {
+          let _id := calldataload(add(idsPtr, mul(0x20, i)))
+          let _amount := calldataload(add(amountsPtr, mul(0x20, i)))
+          burn(_from, _id, _amount)
         }
       }
 
@@ -370,10 +456,6 @@ object "ERC1155" {
         }
       }
 
-      function decodeAsSelector(value) -> s {
-        s := div(value, 0x100000000000000000000000000000000000000000000000000000000)
-      }
-
       function decodeAsUint(offset) -> v {
         let pos := add(4, mul(offset, 0x20))
         if lt(calldatasize(), add(pos, 0x20)) {
@@ -390,15 +472,6 @@ object "ERC1155" {
       function returnUint(v) {
         mstore(0, v)
         return(0, 0x20)
-      }
-
-      function returnZero() {
-        mstore(0, 0)
-        return(0, 0)
-      }
-
-      function returnTrue() {
-        returnUint(1)
       }
 
       function returnMemoryData(from, to) {
@@ -455,16 +528,11 @@ object "ERC1155" {
       //}
 
       /* -------- storage layout ---------- */
-      function ownerPos() -> p { p := 0 }
-      function balancesPos() -> p { p := 1 }
-      function operatorApprovalsPos() -> p { p := 2 }
-      function uriLengthPos() -> p { p := 3 }
+      function balancesPos() -> p { p := 0 }
+      function operatorApprovalsPos() -> p { p := 1 }
+      function uriLengthPos() -> p { p := 2 }
 
       /* -------- storage access ---------- */
-      function owner() -> o {
-        o := sload(ownerPos())
-      }
-
       function balances(account, id) -> b {
         // key = <balancesPos><address><id>
         // slot = keccak256(key)
@@ -492,9 +560,6 @@ object "ERC1155" {
       /* ---------- utility functions ---------- */
       function lte(a, b) -> r {
         r := iszero(gt(a, b))
-      }
-      function gte(a, b) -> r {
-        r := iszero(lt(a, b))
       }
       function safeAdd(a, b) -> r {
         r := add(a, b)

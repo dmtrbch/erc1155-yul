@@ -26,6 +26,14 @@ interface ERC1155 {
         bytes memory data
     ) external;
 
+    function burn(address from, uint256 id, uint256 amount) external;
+
+    function burnBatch(
+        address from,
+        uint256[] memory ids,
+        uint256[] memory amounts
+    ) external;
+
     function balanceOf(
         address account,
         uint256 id
@@ -58,6 +66,8 @@ interface ERC1155 {
         uint256[] calldata amounts,
         bytes calldata data
     ) external;
+
+    function setURI(string memory newuri) external;
 }
 
 contract ERC1155Recipient is ERC1155TokenReceiver {
@@ -129,6 +139,15 @@ contract ERC1155Test is DSTestPlus, ERC1155TokenReceiver {
         uint256 id = 0;
         string memory _test = uri;
         assertEq(erc1155Contract.uri(id), _test);
+    }
+
+    function testSetURI() public {
+        uint256 id = 0;
+        string memory _newuri = "newuri";
+
+        erc1155Contract.setURI(_newuri);
+
+        assertEq(erc1155Contract.uri(id), _newuri);
     }
 
     function testMintToEOA() public {
@@ -406,5 +425,46 @@ contract ERC1155Test is DSTestPlus, ERC1155TokenReceiver {
 
         assertEq(erc1155Contract.balanceOf(from, 1341), 250);
         assertEq(erc1155Contract.balanceOf(address(to), 1341), 250);
+    }
+
+    function testBurn() public {
+        erc1155Contract.mint(address(0xBEEF), 1337, 100, "");
+
+        erc1155Contract.burn(address(0xBEEF), 1337, 70);
+
+        assertEq(erc1155Contract.balanceOf(address(0xBEEF), 1337), 30);
+    }
+
+    function testBurnBatch() public {
+        uint256[] memory ids = new uint256[](5);
+        ids[0] = 1337;
+        ids[1] = 1338;
+        ids[2] = 1339;
+        ids[3] = 1340;
+        ids[4] = 1341;
+
+        uint256[] memory mintAmounts = new uint256[](5);
+        mintAmounts[0] = 100;
+        mintAmounts[1] = 200;
+        mintAmounts[2] = 300;
+        mintAmounts[3] = 400;
+        mintAmounts[4] = 500;
+
+        uint256[] memory burnAmounts = new uint256[](5);
+        burnAmounts[0] = 50;
+        burnAmounts[1] = 100;
+        burnAmounts[2] = 150;
+        burnAmounts[3] = 200;
+        burnAmounts[4] = 250;
+
+        erc1155Contract.mintBatch(address(0xBEEF), ids, mintAmounts, "");
+
+        erc1155Contract.burnBatch(address(0xBEEF), ids, burnAmounts);
+
+        assertEq(erc1155Contract.balanceOf(address(0xBEEF), 1337), 50);
+        assertEq(erc1155Contract.balanceOf(address(0xBEEF), 1338), 100);
+        assertEq(erc1155Contract.balanceOf(address(0xBEEF), 1339), 150);
+        assertEq(erc1155Contract.balaburnbatnceOf(address(0xBEEF), 1340), 200);
+        assertEq(erc1155Contract.balanceOf(address(0xBEEF), 1341), 250);
     }
 }
