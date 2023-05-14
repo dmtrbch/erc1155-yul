@@ -2,7 +2,6 @@
 pragma solidity 0.8.15;
 
 import "forge-std/Test.sol";
-import "forge-std/console2.sol";
 
 contract YulDeployer is Test {
     ///@notice Compiles a Yul contract and returns the address that the contract was deployed to
@@ -23,9 +22,9 @@ contract YulDeployer is Test {
         inputs[2] = bashCommand;
 
         bytes memory bytecode = abi.decode(vm.ffi(inputs), (bytes));
-        // console.logBytes(bytecode);
+
         bytes memory codeERC1155 = abi.encodePacked(bytecode, abi.encode(uri));
-        // console.logBytes(codeERC1155);
+
         ///@notice deploy the bytecode with the create instruction
         address deployedAddress;
         assembly {

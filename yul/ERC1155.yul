@@ -5,9 +5,13 @@ object "ERC1155" {
 		function lte(a, b) -> r {
       r := iszero(gt(a, b))
     }
+    function safeSub(a, b) -> r {
+      r := sub(a, b)
+      if gt(r, a) { revert(0, 0) }
+    }
 
-		let offset := add(0xd59, 0x20) // first parameter is length of bytecode, this is hardcoded
-		let uriDataLength := sub(codesize(), offset) // codesize - offset (maybe we need safeSub here)
+		let offset := add(0xe8e, 0x20) // first parameter is length of bytecode, this is hardcoded
+		let uriDataLength := safeSub(codesize(), offset) // codesize - offset (maybe we need safeSub here)
    
 		codecopy(0, offset, uriDataLength)  // right offset hardcoded
 
@@ -110,7 +114,7 @@ object "ERC1155" {
         emitTransferBatch(caller(), from, to, idsOffset, amountsOffset)
 
         // check that the receiving address can receive erc1155 tokens
-        _doSafeBatchTransferAcceptanceCheck(from, to, idsOffset, amountsOffset, dataOffset)
+        _doSafeBatchTransferAcceptanceCheck(from, to, idsOffset, amountsOffset, dataOffset, 0)
       }
       case 0x02fe5305 /* setURI(string memory newuri) */ {
         setURI(decodeAsUint(0))
@@ -138,7 +142,7 @@ object "ERC1155" {
         emitTransferBatch(caller(), address0(), to, idsOffset, amountsOffset)
 
         // check that the receiving address can receive erc1155 tokens
-        _doSafeBatchTransferAcceptanceCheck(address0(), to, idsOffset, amountsOffset, dataOffset)
+        _doSafeBatchTransferAcceptanceCheck(address0(), to, idsOffset, amountsOffset, dataOffset, 1)
       }
       case 0xf5298aca /* burn(address from, uint256 id, uint256 amount) */ {
         let from := decodeAsAddress(0)
@@ -402,15 +406,15 @@ object "ERC1155" {
 
         if eq(extcodesize(account), 0) { leave } // receiver is eoa
 
-        mstore(0, 0)
+        mstore(0, 0) // zero-out return data location
 
         mstore(getMemPtr(), fnSelector)
-        mstore(add(getMemPtr(), 0x04), caller())
-        mstore(add(getMemPtr(), 0x24), _from)
-        mstore(add(getMemPtr(), 0x44), id)
-        mstore(add(getMemPtr(), 0x64), amount)
-        mstore(add(getMemPtr(), 0x84), 0x00000000000000000000000000000000000000000000000000000000000000a0)
-        mstore(add(getMemPtr(), 0xa4), 0x0000000000000000000000000000000000000000000000000000000000000000)
+        mstore(safeAdd(getMemPtr(), 0x04), caller())
+        mstore(safeAdd(getMemPtr(), 0x24), _from)
+        mstore(safeAdd(getMemPtr(), 0x44), id)
+        mstore(safeAdd(getMemPtr(), 0x64), amount)
+        mstore(safeAdd(getMemPtr(), 0x84), 0x00000000000000000000000000000000000000000000000000000000000000a0)
+        mstore(safeAdd(getMemPtr(), 0xa4), 0x0000000000000000000000000000000000000000000000000000000000000000)
 
         let success := call(gas(), account, 0, getMemPtr(), 0xc4, 0x00, 0x04)
         require(success)
@@ -419,26 +423,47 @@ object "ERC1155" {
         require(eq(response, fnSelector))
       }
 
-      function _doSafeBatchTransferAcceptanceCheck(_from, account, _idsOffset, _amountsOffset, _dataOffset) {
+      function _doSafeBatchTransferAcceptanceCheck(_from, account, _idsOffset, _amountsOffset, _dataOffset, fnCall) {
         // 0xbc197c81 = onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)
         let fnSelector := 0xbc197c8100000000000000000000000000000000000000000000000000000000
 
         if eq(extcodesize(account), 0) { leave } // receiver is eoa
 
-        mstore(0, 0)
+        mstore(0, 0) // zero-out return data location
 
-        let argsDataLength := sub(calldatasize(), 0x84) 
+        let success
 
-        mstore(getMemPtr(), fnSelector)
-        mstore(add(getMemPtr(), 0x04), caller())
-        mstore(add(getMemPtr(), 0x24), _from)
-        mstore(add(getMemPtr(), 0x44), add(_idsOffset, 0x20)) // ids offset
-        mstore(add(getMemPtr(), 0x64), add(_amountsOffset, 0x20)) // amounts offset
-        mstore(add(getMemPtr(), 0x84), add(_dataOffset, 0x20)) // data offset
+        switch fnCall
+        case 0 {
+          calldatacopy(getMemPtr(), 0x00, calldatasize())
 
-        calldatacopy(add(getMemPtr(), 0xa4), 0x84, argsDataLength)
+          mstore8(getMemPtr(), 0xbc)
+          mstore8(safeAdd(getMemPtr(), 0x01), 0x19)
+          mstore8(safeAdd(getMemPtr(), 0x02), 0x7c)
+          mstore8(safeAdd(getMemPtr(), 0x03), 0x81)
+          mstore(safeAdd(getMemPtr(), 0x04), caller())
+          mstore(safeAdd(getMemPtr(), 0x24), _from)
 
-        let success := call(gas(), account, 0, getMemPtr(), add(argsDataLength, 0xa4), 0x00, 0x04)
+          success := call(gas(), account, 0, getMemPtr(), calldatasize(), 0x00, 0x04)
+        }
+        case 1 {
+          let argsDataLength := sub(calldatasize(), 0x84) 
+
+          mstore(getMemPtr(), fnSelector)
+          mstore(safeAdd(getMemPtr(), 0x04), caller())
+          mstore(safeAdd(getMemPtr(), 0x24), _from)
+          mstore(safeAdd(getMemPtr(), 0x44), add(_idsOffset, 0x20)) // ids offset
+          mstore(safeAdd(getMemPtr(), 0x64), add(_amountsOffset, 0x20)) // amounts offset
+          mstore(safeAdd(getMemPtr(), 0x84), add(_dataOffset, 0x20)) // data offset
+
+          calldatacopy(safeAdd(getMemPtr(), 0xa4), 0x84, argsDataLength)
+
+          success := call(gas(), account, 0, getMemPtr(), safeAdd(argsDataLength, 0xa4), 0x00, 0x04)
+        }
+        default {
+          revert(0, 0)
+        }
+
         require(success)
 
         let response := mload(0)
