@@ -10,7 +10,7 @@ object "ERC1155" {
       if gt(r, a) { revert(0, 0) }
     }
 
-		let offset := add(0xe8e, 0x20) // first parameter is length of bytecode, this is hardcoded
+		let offset := add(0xea3, 0x20) // first parameter is length of bytecode, this is hardcoded
 		let uriDataLength := safeSub(codesize(), offset) // codesize - offset (maybe we need safeSub here)
    
 		codecopy(0, offset, uriDataLength)  // right offset hardcoded
@@ -481,6 +481,7 @@ object "ERC1155" {
         if iszero(iszero(and(v, not(0xffffffffffffffffffffffffffffffffffffffff)))) {
           revert(0, 0)
         }
+        revertIfZero(v)
       }
 
       function decodeAsUint(offset) -> v {
@@ -595,6 +596,9 @@ object "ERC1155" {
       }
       function address0() -> a {
         a := 0x0000000000000000000000000000000000000000000000000000000000000000
+      }
+      function revertIfZero(addr) {
+        require(addr)
       }
       function require(condition) {
         if iszero(condition) { revert(0, 0) }
